@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Image Search — Professional (Static, Vercel-ready)</title>
+  <meta name="description" content="A polished, DB-free image search web app. Upload, search, favorite and download images. Works out-of-the-box with sample images and optional external API integration." />
+  <style>
+    :root{
+      --bg:#0f1724;--card:#0b1220;--muted:#94a3b8;--accent:#7c3aed;--glass:rgba(255,255,255,0.04);
+      --radius:12px; --gap:16px; --max-width:1100px;
+      color-scheme: dark;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:linear-gradient(180deg,#071129 0%, #07122a 60%); color:#e6eef8}
+    .app{max-width:var(--max-width);margin:28px auto;padding:20px}
+
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#06b6d4);display:grid;place-items:center;font-weight:700;color:white}
+    h1{margin:0;font-size:18px}
+    p.lead{margin:0;color:var(--muted);font-size:13px}
+
+    .controls{display:flex;gap:12px;align-items:center;margin-top:18px}
+    .search{flex:1;display:flex;gap:8px}
+    input[type="search"]{flex:1;padding:12px 14px;border-radius:10px;border:0;background:var(--card);color:inherit;outline:2px solid transparent}
+    .btn{background:var(--accent);border:0;padding:10px 12px;border-radius:10px;color:white;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+    .filters{display:flex;gap:8px;align-items:center}
+    select,button{padding:10px;border-radius:10px;background:var(--card);border:0;color:inherit}
+
+    main{margin-top:22px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:var(--gap)}
+    .card{border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);overflow:hidden;position:relative;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    .card img{display:block;width:100%;height:180px;object-fit:cover}
+    .meta{padding:10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .tags{display:flex;gap:6px;flex-wrap:wrap}
+    .tag{background:var(--glass);padding:6px 8px;border-radius:8px;font-size:12px;color:var(--muted)}
+    .fav{cursor:pointer;border:0;background:transparent;font-size:18px;color:var(--muted)}
+
+    .uploader{margin-top:12px;padding:12px;border-radius:12px;background:linear-gradient(90deg,rgba(255,255,255,0.02),transparent);display:flex;gap:8px;align-items:center}
+    .drop{flex:1;padding:10px;border-radius:8px;border:2px dashed rgba(255,255,255,0.03);text-align:center;color:var(--muted)}
+    input[type=file]{display:none}
+
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(2,6,23,0.5),rgba(2,6,23,0.85));z-index:60}
+    .modal.open{display:flex}
+    .modal .sheet{max-width:90%;max-height:90%;background:var(--card);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+    .sheet img{max-width:100%;max-height:70vh;object-fit:contain;background:black}
+    .sheet .bar{display:flex;gap:8px;padding:10px;align-items:center;justify-content:space-between}
+    .sheet .info{color:var(--muted);font-size:13px}
+
+    .bottom{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:20px}
+    .small{font-size:13px;color:var(--muted)}
+
+    .settings-panel{position:fixed;right:18px;bottom:18px;background:linear-gradient(180deg,#0b1220,transparent);padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+
+    @media (max-width:640px){.card img{height:150px}}
+
+    /* subtle focus styles */
+    input:focus,select:focus,button:focus{outline:3px solid rgba(124,58,237,0.18)}
+
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <header>
+      <div class="brand">
+        <div class="logo">IS</div>
+        <div>
+          <h1>Image Search</h1>
+          <p class="lead">Fast, privacy-friendly image search — DB-free. Upload, search, favorite and download.</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn ghost" id="theme-toggle" aria-label="Toggle theme">Theme</button>
+        <button class="btn" id="open-settings">Settings</button>
+      </div>
+    </header>
+
+    <section class="controls">
+      <div class="search">
+        <input type="search" id="q" placeholder="Search images by title or tag — try 'nature' or 'city'" aria-label="Search images" />
+        <button class="btn" id="search">Search</button>
+      </div>
+
+      <div class="filters">
+        <select id="orientation" title="Orientation filter">
+          <option value="any">Any</option>
+          <option value="landscape">Landscape</option>
+          <option value="portrait">Portrait</option>
+          <option value="square">Square</option>
+        </select>
+        <button class="btn ghost" id="show-favs">Favorites</button>
+      </div>
+    </section>
+
+    <section class="uploader" aria-label="Image uploader">
+      <label class="drop" id="drop-area">Drag & drop images here or <button class="btn ghost" id="pick">Choose</button></label>
+      <input type="file" id="file" accept="image/*" multiple />
+    </section>
+
+    <main>
+      <div class="grid" id="grid" aria-live="polite"></div>
+      <div class="bottom small" id="more-area">
+        <button class="btn" id="load-more">Load more</button>
+      </div>
+    </main>
+
+    <div class="modal" id="modal" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="sheet" role="document">
+        <div class="bar">
+          <div class="info" id="modal-info">&nbsp;</div>
+          <div>
+            <button class="btn ghost" id="prev">◀</button>
+            <button class="btn ghost" id="next">▶</button>
+            <button class="btn" id="download">Download</button>
+            <button class="btn ghost" id="close">Close</button>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:center;align-items:center;padding:8px;background:#000"><img id="modal-img" alt="Expanded image" /></div>
+      </div>
+    </div>
+
+    <div class="settings-panel" id="settings" aria-hidden="true" style="display:none">
+      <div style="display:flex;flex-direction:column;gap:8px;min-width:260px">
+        <div style="font-weight:600">Settings</div>
+        <label class="small">Optional: Use Unsplash API (client-side). Provide Access Key</label>
+        <input id="unsplash-key" placeholder="Paste Access Key (optional)" />
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn ghost" id="settings-close">Close</button>
+          <button class="btn" id="settings-save">Save</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Small, well-documented app script
+    (function(){
+      // Config
+      const SAMPLE_IDS = [237,238,239,240,241,242,243,244,245,246,247,248,249];
+      const SAMPLE_KEYWORDS = ['nature','city','mountain','forest','ocean','architecture','people','night','sunset','street','travel','animals'];
+      // State
+      let images = []; // {id, src, title, tags, fav}
+      let page = 0; const PAGE_SIZE = 9;
+      let currentIndex = -1;
+      const storeKey = 'is_images_v1';
+      const favKey = 'is_favs_v1';
+      const settingsKey = 'is_settings_v1';
+
+      // Elements
+      const grid = document.getElementById('grid');
+      const qInput = document.getElementById('q');
+      const searchBtn = document.getElementById('search');
+      const loadMoreBtn = document.getElementById('load-more');
+      const drop = document.getElementById('drop-area');
+      const fileInput = document.getElementById('file');
+      const pickBtn = document.getElementById('pick');
+      const favBtn = document.getElementById('show-favs');
+
+      const modal = document.getElementById('modal');
+      const modalImg = document.getElementById('modal-img');
+      const modalInfo = document.getElementById('modal-info');
+      const prevBtn = document.getElementById('prev');
+      const nextBtn = document.getElementById('next');
+      const closeBtn = document.getElementById('close');
+      const downloadBtn = document.getElementById('download');
+
+      const settingsPanel = document.getElementById('settings');
+      const openSettings = document.getElementById('open-settings');
+      const settingsClose = document.getElementById('settings-close');
+      const settingsSave = document.getElementById('settings-save');
+      const unsplashKeyInput = document.getElementById('unsplash-key');
+
+      const themeToggle = document.getElementById('theme-toggle');
+
+      // helpers
+      function uid(prefix='id'){return prefix+Math.random().toString(36).slice(2,9)}
+      function saveStore(){localStorage.setItem(storeKey,JSON.stringify(images))}
+      function loadStore(){try{images=JSON.parse(localStorage.getItem(storeKey))||[]}catch(e){images=[]}}
+      function saveFavs(){const favs=images.filter(i=>i.fav).map(i=>i.id);localStorage.setItem(favKey,JSON.stringify(favs))}
+      function loadFavs(){try{const favs=JSON.parse(localStorage.getItem(favKey))||[];images.forEach(i=>i.fav = favs.includes(i.id))}catch(e){}
+      }
+      function saveSettings(){const s={unsplashKey:unsplashKeyInput.value||''};localStorage.setItem(settingsKey,JSON.stringify(s))}
+      function loadSettings(){try{const s=JSON.parse(localStorage.getItem(settingsKey))||{};unsplashKeyInput.value=s.unsplashKey||''}catch(e){}
+      }
+
+      // sample image generator
+      function makeSample(index){
+        const id = 's'+index;
+        const pid = SAMPLE_IDS[index % SAMPLE_IDS.length];
+        const w = 800 + (index%7)*10; const h = 600 + (index%5)*8;
+        const src = `https://picsum.photos/id/${pid}/${w}/${h}`;
+        const title = (SAMPLE_KEYWORDS[index % SAMPLE_KEYWORDS.length]) + ' photo #' + (index+1);
+        const tags = [(SAMPLE_KEYWORDS[index % SAMPLE_KEYWORDS.length])];
+        return {id,src,title,tags, fav:false, createdAt:Date.now()-(index*1000*60)};
+      }
+
+      // ensure we have initial images
+      function seedIfEmpty(){loadStore(); if(images.length===0){for(let i=0;i<18;i++) images.push(makeSample(i)); saveStore()} else {loadFavs()} }
+
+      // rendering
+      function clearGrid(){grid.innerHTML=''}
+      function renderCards(list){
+        const frag = document.createDocumentFragment();
+        list.forEach((img, idx)=>{
+          const c = document.createElement('div'); c.className='card';
+          const el = document.createElement('img'); el.src = img.src; el.alt = img.title; el.loading='lazy';
+          el.tabIndex=0; el.style.cursor='pointer';
+          el.addEventListener('click', ()=> openModalById(img.id));
+          el.addEventListener('keydown', (e)=>{ if(e.key==='Enter') openModalById(img.id) });
+          const meta = document.createElement('div'); meta.className='meta';
+          const tags = document.createElement('div'); tags.className='tags';
+          img.tags.slice(0,3).forEach(t=>{const span=document.createElement('span');span.className='tag'; span.textContent=t; tags.appendChild(span)});
+          const heart = document.createElement('button'); heart.className='fav'; heart.innerHTML = img.fav ? '❤️' : '🤍'; heart.title='Toggle favorite';
+          heart.addEventListener('click', (ev)=>{ev.stopPropagation(); toggleFav(img.id); heart.innerHTML = img.fav ? '❤️' : '🤍'});
+          meta.appendChild(tags); meta.appendChild(heart);
+          c.appendChild(el); c.appendChild(meta); frag.appendChild(c);
+        });
+        grid.appendChild(frag);
+      }
+
+      function listVisible(){
+        const q = qInput.value.trim().toLowerCase();
+        const orient = document.getElementById('orientation').value;
+        let res = images.slice();
+        if(q){res = res.filter(i => (i.title||'').toLowerCase().includes(q) || (i.tags||[]).join(' ').toLowerCase().includes(q))}
+        if(orient!=='any'){
+          res = res.filter(i=>{
+            // best-effort: try to detect orientation from src dims (picsum contains last numbers), fallback random
+            const m = (i.src.match(/\/(\d+)\/(\d+)(\?|$)/) || []);
+            if(m[1] && m[2]){const w=+m[1],h=+m[2]; if(orient==='landscape') return w>h; if(orient==='portrait') return h>w; if(orient==='square') return Math.abs(w-h)<40}
+            return true;
+          })
+        }
+        return res;
+      }
+
+      function showPage(reset=false){ if(reset) page=0; const list = listVisible(); const slice = list.slice(page*PAGE_SIZE, (page+1)*PAGE_SIZE); if(reset) clearGrid(); renderCards(slice);}
+
+      // load more
+      loadMoreBtn.addEventListener('click', ()=>{ page++; showPage(false) });
+
+      // search
+      searchBtn.addEventListener('click', ()=>{ page=0; clearGrid(); const res = listVisible(); showPage(true) });
+
+      // favorites
+      favBtn.addEventListener('click', ()=>{ const favs = images.filter(i=>i.fav); clearGrid(); if(favs.length===0){grid.innerHTML='<div class="small" style="padding:20px;color:var(--muted)">No favorites yet — click the ❤️ on an image</div>'} else renderCards(favs) });
+
+      // upload
+      pickBtn.addEventListener('click', ()=> fileInput.click());
+      fileInput.addEventListener('change',(e)=>{handleFiles(e.target.files)});
+      function handleFiles(files){Array.from(files).forEach(file=>{
+        const reader = new FileReader(); reader.onload = (ev)=>{
+          const id = uid('u'); const src = ev.target.result; const title = file.name; const tags = title.split(/[-_\s.]+/).slice(0,3);
+          images.unshift({id,src,title,tags,fav:false,createdAt:Date.now()}); saveStore(); saveFavs(); page=0; clearGrid(); showPage(true)
+        }; reader.readAsDataURL(file);
+      })}
+
+      // drag & drop
+      ;['dragenter','dragover'].forEach(ev=>{drop.addEventListener(ev, (e)=>{e.preventDefault(); drop.style.borderColor='rgba(124,58,237,0.6)'} )});
+      ;['dragleave','drop'].forEach(ev=>{drop.addEventListener(ev,(e)=>{e.preventDefault(); drop.style.borderColor='rgba(255,255,255,0.03)'} )});
+      drop.addEventListener('drop',(e)=>{ const dt=e.dataTransfer.files; if(dt && dt.length) handleFiles(dt) });
+
+      // modal
+      function openModalById(id){ currentIndex = images.findIndex(i=>i.id===id); if(currentIndex<0) return; const item = images[currentIndex]; modalImg.src = item.src; modalInfo.textContent = item.title + ' • ' + (new Date(item.createdAt)).toLocaleString(); modal.classList.add('open'); modal.setAttribute('aria-hidden','false') }
+      function closeModal(){ modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); modalImg.src=''}
+      prevBtn.addEventListener('click', ()=>{ if(currentIndex>0) openModalById(images[currentIndex-1].id) });
+      nextBtn.addEventListener('click', ()=>{ if(currentIndex<images.length-1) openModalById(images[currentIndex+1].id) });
+      closeBtn.addEventListener('click', closeModal);
+      modal.addEventListener('click',(e)=>{ if(e.target===modal) closeModal() });
+      document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeModal(); if(e.key==='ArrowLeft' && modal.classList.contains('open')) prevBtn.click(); if(e.key==='ArrowRight' && modal.classList.contains('open')) nextBtn.click(); });
+
+      downloadBtn.addEventListener('click', ()=>{ if(currentIndex<0) return; const a=document.createElement('a'); a.href = images[currentIndex].src; a.download = (images[currentIndex].title||'image') + '.jpg'; document.body.appendChild(a); a.click(); a.remove(); });
+
+      // favorites toggle
+      function toggleFav(id){ const idx=images.findIndex(i=>i.id===id); if(idx>-1){ images[idx].fav = !images[idx].fav; saveFavs(); saveStore(); }}
+
+      // settings
+      openSettings.addEventListener('click', ()=>{settingsPanel.style.display='block'; settingsPanel.setAttribute('aria-hidden','false'); loadSettings();});
+      settingsClose.addEventListener('click', ()=>{settingsPanel.style.display='none'; settingsPanel.setAttribute('aria-hidden','true');});
+      settingsSave.addEventListener('click', ()=>{saveSettings(); settingsPanel.style.display='none'; settingsPanel.setAttribute('aria-hidden','true'); alert('Settings saved — Unsplash integration enabled if you entered a key.');});
+
+      // optional Unsplash integration (client-side only)
+      async function fetchUnsplash(q, pageNum=1){
+        const key = unsplashKeyInput.value.trim(); if(!key) return {results:[]};
+        const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(q)}&page=${pageNum}&per_page=12&client_id=${encodeURIComponent(key)}`;
+        const r = await fetch(url); if(!r.ok) return {results:[]}; const data = await r.json(); return data;
+      }
+
+      // improve search to optionally use Unsplash
+      async function searchAndShow(){ const q = qInput.value.trim(); if(!q) return showPage(true); const key = unsplashKeyInput.value.trim(); if(key){ // use Unsplash
+          const data = await fetchUnsplash(q,1); if(data.results && data.results.length){ // convert to internal format and show
+            const us = data.results.map(u=>({id: 'us_'+u.id, src: u.urls.regular, title: u.description || u.alt_description || u.user.name || q, tags: (u.tags||[]).slice(0,3).map(t=>t.title || t), fav:false, createdAt: Date.parse(u.created_at)||Date.now()})); clearGrid(); renderCards(us); return;
+          }
+        }
+        // fallback to local samples and uploaded items
+        page=0; clearGrid(); showPage(true);
+      }
+      // wire search to optional remote
+      searchBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); searchAndShow(); });
+
+      // theme
+      themeToggle.addEventListener('click', ()=>{ document.documentElement.style.filter = document.documentElement.style.filter ? '' : 'saturate(1.05)'; });
+
+      // tiny startup
+      seedIfEmpty(); loadSettings(); showPage(true);
+
+      // expose helpful debugging on window
+      window.IS_APP = {images,saveStore,loadStore,seedIfEmpty};
+
+    })();
+  </script>
+</body>
+</html>
